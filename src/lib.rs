@@ -128,9 +128,7 @@ pub unsafe fn herpaderping(
     };
 
     log::info!("Main thread in target process started. Waiting until the process is finished");
-
     WaitForSingleObject(target_process_handle, INFINITE);
-
     log::info!("Process herpaderping is over :D");
 
     CloseHandle(thread_handle);

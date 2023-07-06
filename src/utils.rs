@@ -10,7 +10,6 @@ use ntapi::{
     },
     FIELD_OFFSET,
 };
-use widestring::WideCString;
 use windows_sys::Win32::{
     Foundation::{
         CloseHandle, GetLastError, BOOL, ERROR_INVALID_IMAGE_HASH, FARPROC, HANDLE,
@@ -244,35 +243,83 @@ pub unsafe fn get_process_basic_info(
 
 pub unsafe fn write_remote_process_parameters(
     process_handle: HANDLE,
-    image_file_name: &str,
-    _dll_path: Option<&str>,
-    _current_directory: Option<&str>,
+    image_filename: &str,
+    dll_path: Option<&str>,
+    current_directory: Option<&str>,
     command_line: Option<&str>,
     environment_block: *mut ntapi::winapi::ctypes::c_void,
     windows_title: Option<&str>,
     desktop_info: Option<&str>,
-    _shell_info: Option<&str>,
-    _runtime_data: Option<&str>,
+    shell_info: Option<&str>,
+    runtime_data: Option<&str>,
 ) -> Result<(), i32> {
     let pbi = get_process_basic_info(process_handle)?;
 
-    let mut image_file_name = str_to_unicode_string(Some(image_file_name));
-    let mut command_line = str_to_unicode_string(command_line);
-    let mut windows_title = str_to_unicode_string(windows_title);
-    let mut desktop_info = str_to_unicode_string(desktop_info);
+    let image_filename_wide = str_to_widestring(image_filename);
+    let mut image_filename_unicode = UNICODE_STRING::default();
+    RtlInitUnicodeString(&mut image_filename_unicode, image_filename_wide.as_ptr());
+
+    let dll_path_wide = str_to_widestring(dll_path.unwrap_or_default());
+    let mut dll_path_unicode = UNICODE_STRING::default();
+    RtlInitUnicodeString(
+        &mut dll_path_unicode, 
+        dll_path_wide.as_ptr()
+    );
+
+    let current_directory_wide = str_to_widestring(current_directory.unwrap_or_default());
+    let mut current_directory_unicode = UNICODE_STRING::default();
+    RtlInitUnicodeString(
+        &mut current_directory_unicode,
+        current_directory_wide.as_ptr(),
+    );
+
+    let command_line_wide = str_to_widestring(command_line.unwrap_or_default());
+    let mut command_line_unicode = UNICODE_STRING::default();
+    RtlInitUnicodeString(
+        &mut command_line_unicode, 
+        command_line_wide.as_ptr()
+    );
+
+    let windows_title_wide = str_to_widestring(windows_title.unwrap_or_default());
+    let mut windows_title_unicode = UNICODE_STRING::default();
+    RtlInitUnicodeString(
+        &mut windows_title_unicode, 
+        windows_title_wide.as_ptr()
+    );
+
+    let desktop_info_wide = str_to_widestring(desktop_info.unwrap_or_default());
+    let mut desktop_info_unicode = UNICODE_STRING::default();
+    RtlInitUnicodeString(
+        &mut desktop_info_unicode, 
+        desktop_info_wide.as_ptr()
+    );
+
+    let shell_info_wide = str_to_widestring(shell_info.unwrap_or_default());
+    let mut shell_info_unicode = UNICODE_STRING::default();
+    RtlInitUnicodeString(
+        &mut shell_info_unicode, 
+        shell_info_wide.as_ptr()
+    );
+
+    let runtime_data_wide = str_to_widestring(runtime_data.unwrap_or_default());
+    let mut runtime_data_unicode = UNICODE_STRING::default();
+    RtlInitUnicodeString(
+        &mut runtime_data_unicode, 
+        runtime_data_wide.as_ptr()
+    );
 
     let mut params =
         &mut std::mem::zeroed::<RTL_USER_PROCESS_PARAMETERS>() as *mut RTL_USER_PROCESS_PARAMETERS;
 
     let ntstatus = RtlCreateProcessParametersEx(
         &mut params as *mut *mut RTL_USER_PROCESS_PARAMETERS,
-        &mut image_file_name,
+        &mut image_filename_unicode,
         null_mut(),
         null_mut(),
-        &mut command_line,
+        &mut command_line_unicode,
         environment_block,
-        &mut windows_title,
-        &mut desktop_info,
+        &mut windows_title_unicode,
+        &mut desktop_info_unicode,
         null_mut(),
         null_mut(),
         0,
@@ -358,20 +405,8 @@ pub unsafe fn write_remote_process_parameters(
     Ok(())
 }
 
-pub fn str_to_unicode_string(input: Option<&str>) -> UNICODE_STRING {
-    match input {
-        Some(input) => {
-            let wide_input = str_to_widestring(input);
-            let mut unicode_string = UNICODE_STRING::default();
-            unsafe { RtlInitUnicodeString(&mut unicode_string, wide_input.as_ptr()) };
-            return unicode_string;
-        }
-        None => {
-            return UNICODE_STRING::default();
-        }
-    }
-}
-
-pub fn str_to_widestring(input: &str) -> WideCString {
-    return WideCString::from_vec(input.encode_utf16().collect::<Vec<_>>()).unwrap();
+pub fn str_to_widestring(s: &str) -> Vec<u16> {
+    s.encode_utf16()
+        .chain(std::iter::once(0))
+        .collect::<Vec<u16>>()
 }
